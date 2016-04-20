@@ -1,3 +1,7 @@
+# DEPRECATION NOTICE
+
+This script is not maintaned anymore. It also partially relies on [already deprecated AWS CLI tool](http://docs.aws.amazon.com/AmazonRDS/latest/CommandLineReference/CLIReference-cmd-DescribeReservedDBInstances.html), so it may not work depending on this tool availability and its working state.
+
 check-reserved-instances
 ------------------------
 
