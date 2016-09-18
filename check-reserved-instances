@@ -1,66 +1,87 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
+from __future__ import print_function
 
+import argparse
 import datetime
-import time
-import optparse
 
-from boto import ec2
+import boto3.session
+from dateutil.tz import tzutc
+
+parser = argparse.ArgumentParser(
+    description="Shows summary about 'Reserved' and 'On-demand' ec2 instances")
+parser.add_argument("--aws-access-key", type=str, default=None,
+                    help="AWS Access Key ID. Defaults to the value of the "
+                         "AWS_ACCESS_KEY_ID environment variable (if set)")
+parser.add_argument("--aws-secret-key", type=str, default=None,
+                    help="AWS Secret Access Key. Defaults to the value of the "
+                         "AWS_SECRET_ACCESS_KEY environment variable (if set)")
+parser.add_argument("--region", type=str, default="cn-north-1",
+                    help="AWS Region name. Default is 'cn-north-1'")
+parser.add_argument("-w", "--warn-time", type=int, default=30,
+                    help="Expire period for reserved instances in days. "
+                         "Default is '30 days'")
+args = parser.parse_args()
 
 
-parser = optparse.OptionParser(description="Shows summary about 'Reserved' and 'On-demand' ec2 instances")
-parser.add_option("--aws-access-key", type=str, default=None, help="AWS Access Key ID. Defaults to the value of the AWS_ACCESS_KEY_ID environment variable (if set)")
-parser.add_option("--aws-secret-key", type=str, default=None, help="AWS Secret Access Key. Defaults to the value of the AWS_SECRET_ACCESS_KEY environment variable (if set)")
-parser.add_option("--region", type=str, default="us-west-1", help="AWS Region name. Default is 'us-west-1'")
-parser.add_option("-w", "--warn-time", type=int, default=30, help="Expire period for reserved instances in days. Default is '30 days'")
-args, _ = parser.parse_args()
+session = boto3.session.Session(region_name=args.region,
+                                aws_access_key_id=args.aws_access_key,
+                                aws_secret_access_key=args.aws_secret_key)
+ec2 = session.resource('ec2')
+ec2_client = session.client('ec2')
 
-conn = ec2.connect_to_region(args.region, aws_access_key_id=args.aws_access_key, aws_secret_access_key=args.aws_secret_key)
-
-instances = sum([x.instances for x in conn.get_all_instances()], [])
-
+instances = ec2.instances.all()
 running_instances = {}
 for i in instances:
-    if i.state == 'running':
-        running_instances[(i.instance_type, i.placement)] = running_instances.get((i.instance_type, i.placement), 0 ) + 1
+    if i.state['Name'] == 'running':
+        key = (i.instance_type, i.placement['AvailabilityZone'])
+        running_instances[key] = running_instances.get(key, 0) + 1
 
 reserved_instances = {}
 soon_expire_ri = {}
-for ri in conn.get_all_reserved_instances():
-    if ri.state != 'active':
-        continue
-    reserved_instances[(ri.instance_type, ri.availability_zone)] = reserved_instances.get((ri.instance_type, ri.availability_zone), 0) + ri.instance_count
-    expire_time = time.mktime(datetime.datetime.strptime(ri.start, "%Y-%m-%dT%H:%M:%S.%fZ").timetuple()) + ri.duration
-    if (expire_time - time.time()) < args.warn_time * 86400:
-        soon_expire_ri[ri.id] = (ri.instance_type, ri.availability_zone, expire_time)
 
-diff = dict([(x, reserved_instances[x] - running_instances.get(x, 0)) for x in reserved_instances])
+reservations = ec2_client.describe_reserved_instances()
+now = datetime.datetime.utcnow().replace(tzinfo=tzutc())
+for ri in reservations['ReservedInstances']:
+    if ri['State'] != 'active':
+        continue
+    key = (ri['InstanceType'], ri['AvailabilityZone'])
+    reserved_instances[key] = \
+        reserved_instances.get(key, 0) + ri['InstanceCount']
+    expire_time = ri['Start'] + datetime.timedelta(seconds=ri['Duration'])
+    if (expire_time - now) < datetime.timedelta(days=args.warn_time):
+        soon_expire_ri[ri['ReservedInstancesId']] = key + (expire_time,)
+
+
+diff = dict([(x, reserved_instances[x] - running_instances.get(x, 0))
+             for x in reserved_instances])
 
 for pkey in running_instances:
     if pkey not in reserved_instances:
         diff[pkey] = -running_instances[pkey]
 
-unused_ri = dict((k, v) for k, v in diff.iteritems() if v > 0)
+unused_ri = dict((k, v) for k, v in diff.items() if v > 0)
 
-unreserved_instances = dict((k,-v) for k, v in diff.iteritems() if v < 0)
+unreserved_instances = dict((k,-v) for k, v in diff.items() if v < 0)
 
 # Report
 print("Unused reserved instances:")
-for k, v in unused_ri.iteritems():
+for k, v in unused_ri.items():
     print("\t(%s)\t%s\t%s" %(v, k[0], k[1]))
 if not unused_ri:
     print("\tNone")
 print("")
 
 print("Expiring soon (less than %sd) reserved instances:" % args.warn_time)
-for k, v in soon_expire_ri.iteritems():
-    print("\t%s\t%s\t%s\t%s" %(k, v[0], v[1], datetime.datetime.fromtimestamp(v[2]).strftime('%Y-%m-%d')))
+for k, v in soon_expire_ri.items():
+    print("\t%s\t%s\t%s\t%s" % (
+        k, v[0], v[1], v[2].strftime('%Y-%m-%d')))
 if not soon_expire_ri:
     print("\tNone")
 print("")
 
 print("On-demand instances, which haven't got a reserved instance:")
-for k, v in unreserved_instances.iteritems():
+for k, v in unreserved_instances.items():
     print("\t(%s)\t%s\t%s" %(v, k[0], k[1]))
 if not unreserved_instances:
     print("\tNone")
@@ -69,5 +90,3 @@ print("")
 print("Running on-demand instances:   %s" % sum(running_instances.values()))
 print("Reserved instances:            %s" % sum(reserved_instances.values()))
 print("")
-
-
