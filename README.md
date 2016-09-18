@@ -1,9 +1,4 @@
-# DEPRECATION NOTICE
-
-This script is not maintaned anymore. It also partially relies on [already deprecated AWS CLI tool](http://docs.aws.amazon.com/AmazonRDS/latest/CommandLineReference/CLIReference-cmd-DescribeReservedDBInstances.html), so it may not work depending on this tool availability and its working state.
-
-check-reserved-instances
-------------------------
+# check-reserved-instances
 
 This script shows summary about using "Reserved" and "On-demand" ec2 instances. Namely:
 
@@ -13,11 +8,13 @@ This script shows summary about using "Reserved" and "On-demand" ec2 instances. 
 
 The script is heavily based on Scott Bigelow's work: https://github.com/epheph/ec2-check-reserved-instances
 
-### Requirements
+## Requirements
 
-The script is written in Python and uses only `boto`, `optparse` and standard datetime modules. 
+- Python 2.6+
+- argparse (required when using Python 2.6)
+- boto3
 
-### How to work with it
+## How to work with it
 
 For the script needs your [AWS Security Credentials](http://docs.aws.amazon.com/AWSSecurityCredentials/1.0/AboutAWSCredentials.html). You can specify them in [the Boto config](http://boto.readthedocs.org/en/latest/boto_config_tut.html) (`~/.boto` or `/etc/boto.cfg`) or using script command line arguments or by exporting in an environment variables (`AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY`).
 
