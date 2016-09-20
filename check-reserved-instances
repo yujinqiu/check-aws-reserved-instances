@@ -4,6 +4,7 @@ from __future__ import print_function
 
 import argparse
 import datetime
+import re
 
 import boto3.session
 import six
@@ -24,20 +25,54 @@ parser.add_argument("-w", "--warn-time", type=int, default=30,
                          "Default is '30 days'")
 args = parser.parse_args()
 
-
 session = boto3.session.Session(region_name=args.region,
                                 aws_access_key_id=args.aws_access_key,
                                 aws_secret_access_key=args.aws_secret_key)
 ec2 = session.resource('ec2')
 ec2_client = session.client('ec2')
 
+
+IMAGE_PLATFORM_PAT = {
+    'Red Hat': [
+        re.compile(r'.*\b(RHEL|rhel)\b.*'),
+    ],
+}
+image_id_to_platform = {}
+
+# Retrieve instances
 instances = ec2.instances.all()
 running_instances = {}
 for i in instances:
-    if i.state['Name'] == 'running':
-        key = (i.instance_type, i.placement['AvailabilityZone'])
-        running_instances[key] = running_instances.get(key, 0) + 1
+    if i.state['Name'] != 'running':
+        continue
 
+    image_id = i.image_id
+    if image_id in image_id_to_platform:
+        platform = image_id_to_platform[image_id]
+    else:
+        platform = 'Linux/UNIX'
+        try:
+            image = ec2.Image(image_id)
+            if image.platform:
+                platform = image.platform
+            elif image.image_location.startswith('841258680906/'):
+                platform = 'Red Hat'
+            else:
+                image_name = image.name
+                for plat, pats in six.iteritems(IMAGE_PLATFORM_PAT):
+                    for pat in pats:
+                        if pat.match(image_name):
+                            platform = plat
+                            break
+        except AttributeError:
+            platform = 'Linux/UNIX'
+
+        image_id_to_platform[image_id] = platform
+
+    key = (platform, i.instance_type, i.placement['AvailabilityZone'])
+    running_instances[key] = running_instances.get(key, 0) + 1
+
+# Retrieve reserved instances
 reserved_instances = {}
 soon_expire_ri = {}
 
@@ -46,7 +81,8 @@ now = datetime.datetime.utcnow().replace(tzinfo=tzutc())
 for ri in reservations['ReservedInstances']:
     if ri['State'] != 'active':
         continue
-    key = (ri['InstanceType'], ri['AvailabilityZone'])
+    key = (ri['ProductDescription'], ri['InstanceType'],
+           ri['AvailabilityZone'])
     reserved_instances[key] = \
         reserved_instances.get(key, 0) + ri['InstanceCount']
     expire_time = ri['Start'] + datetime.timedelta(seconds=ri['Duration'])
@@ -72,22 +108,24 @@ for k, v in six.iteritems(diff):
 # Report
 print("Unused reserved instances:")
 for k, v in sorted(six.iteritems(unused_ri), key=lambda x: x[0]):
-    print("\t(%s)\t%s\t%s" %(v, k[0], k[1]))
+    print("\t(%s)\t%12s\t%s\t%s" % ((v,) + k))
 if not unused_ri:
     print("\tNone")
 print("")
 
 print("Expiring soon (less than %sd) reserved instances:" % args.warn_time)
 for k, v in sorted(six.iteritems(soon_expire_ri), key=lambda x: x[1][:2]):
-    print("\t%s\t%s\t%s\t%s" % (
-        k, v[0], v[1], v[2].strftime('%Y-%m-%d')))
+    (platform, instance_type, region, expire_date) = v
+    expire_date = expire_date.strftime('%Y-%m-%d')
+    print("\t%s\t%12s\t%s\t%s\t%s" % (k, platform, instance_type, region,
+                                    expire_date))
 if not soon_expire_ri:
-    print("\tNone")
+   print("\tNone")
 print("")
 
 print("On-demand instances, which haven't got a reserved instance:")
 for k, v in sorted(six.iteritems(unreserved_instances), key=lambda x: x[0]):
-    print("\t(%s)\t%s\t%s" %(v, k[0], k[1]))
+    print("\t(%s)\t%12s\t%s\t%s" % ((v,) + k))
 if not unreserved_instances:
     print("\tNone")
 print("")
