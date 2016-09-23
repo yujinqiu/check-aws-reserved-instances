@@ -1,4 +1,4 @@
-# check-reserved-instances
+# check-aws-reserved-instances
 
 This script shows summary about using "Reserved" and "On-demand" ec2 instances. Namely:
 
