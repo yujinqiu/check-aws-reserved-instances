@@ -79,7 +79,7 @@ soon_expire_ri = {}
 reservations = ec2_client.describe_reserved_instances()
 now = datetime.datetime.utcnow().replace(tzinfo=tzutc())
 for ri in reservations['ReservedInstances']:
-    if ri['State'] != 'active':
+    if ri['State'] not in ('active', 'payment-pending'):
         continue
     key = (ri['ProductDescription'], ri['InstanceType'],
            ri['AvailabilityZone'])
