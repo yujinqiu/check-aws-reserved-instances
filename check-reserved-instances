@@ -24,6 +24,7 @@ parser.add_argument("-w", "--warn-time", type=int, default=30,
                     help="Expire period for reserved instances in days. "
                          "Default is '30 days'")
 args = parser.parse_args()
+REGION = args.region + ' (Region)'
 
 session = boto3.session.Session(region_name=args.region,
                                 aws_access_key_id=args.aws_access_key,
@@ -69,7 +70,7 @@ for i in instances:
 
         image_id_to_platform[image_id] = platform
 
-    key = (platform, i.instance_type, i.placement['AvailabilityZone'])
+    key = (platform, i.instance_type, i.placement['AvailabilityZone'] if 'AvailabilityZone' in i.placement else REGION)
     running_instances[key] = running_instances.get(key, 0) + 1
 
 # Retrieve reserved instances
@@ -82,20 +83,31 @@ for ri in reservations['ReservedInstances']:
     if ri['State'] not in ('active', 'payment-pending'):
         continue
     key = (ri['ProductDescription'], ri['InstanceType'],
-           ri['AvailabilityZone'])
+           ri['AvailabilityZone'] if 'AvailabilityZone' in ri else REGION)
     reserved_instances[key] = \
         reserved_instances.get(key, 0) + ri['InstanceCount']
     expire_time = ri['Start'] + datetime.timedelta(seconds=ri['Duration'])
     if (expire_time - now) < datetime.timedelta(days=args.warn_time):
         soon_expire_ri[ri['ReservedInstancesId']] = key + (expire_time,)
 
-
+# Create a dict relating reserved instance keys to running instances.
+# Reserveds get modulated by running.
 diff = dict([(x, reserved_instances[x] - running_instances.get(x, 0))
              for x in reserved_instances])
 
+# Subtract all region-unspecific RIs.
+for reserved_pkey in reserved_instances:
+    if reserved_pkey[2] == REGION:
+        # Go through all running instances and subtract.
+        for running_pkey in running_instances:
+            if running_pkey[0] == reserved_pkey[0] and running_pkey[1] == reserved_pkey[1]:
+                diff[running_pkey] = diff.get(running_pkey, 0) + running_instances[running_pkey]
+                diff[reserved_pkey] -= running_instances[running_pkey]
+
+# For all other running instances, add a negative amount
 for pkey in running_instances:
     if pkey not in reserved_instances:
-        diff[pkey] = -running_instances[pkey]
+        diff[pkey] = diff.get(pkey, 0) - running_instances[pkey]
 
 unused_ri = {}
 unreserved_instances = {}
@@ -106,6 +118,11 @@ for k, v in six.iteritems(diff):
         unreserved_instances[k] = -v
 
 # Report
+print("Reserved instances:")
+for k, v in sorted(six.iteritems(reserved_instances), key=lambda x: x[0]):
+    print("\t(%s)\t%12s\t%s\t%s" % ((v,) + k))
+print("")
+
 print("Unused reserved instances:")
 for k, v in sorted(six.iteritems(unused_ri), key=lambda x: x[0]):
     print("\t(%s)\t%12s\t%s\t%s" % ((v,) + k))
