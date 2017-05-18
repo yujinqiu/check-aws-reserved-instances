@@ -33,6 +33,11 @@ rds_client = session.client('rds')
 
 instances = rds_client.describe_db_instances()['DBInstances']
 
+def normalized_engine(name):
+    engine = {}
+    engine['postgres'] = 'postgresql'
+    return engine.get(name, name)
+
 running_instances = {}
 for i in instances:
     if i['DBInstanceStatus'] != 'available':
@@ -40,7 +45,8 @@ for i in instances:
     if not i['AvailabilityZone'].startswith(args.region):
         continue
     a_zone = args.region
-    key = (i['DBInstanceClass'], a_zone)
+    db_engine = normalized_engine(i['Engine'])
+    key = (db_engine, i['DBInstanceClass'], a_zone)
     running_instances[key] = running_instances.get(key, 0) + 1
 
 reserved_instances = {}
@@ -55,8 +61,9 @@ for ri in reservations:
     ri_id = ri['ReservedDBInstanceId']
     ri_type = ri['DBInstanceClass']
     ri_count = ri['DBInstanceCount']
-    key = (ri_type, args.region)
-    reserved_instances[(ri_type, args.region)] = \
+    ri_engine = ri['ProductDescription']
+    key = (ri_engine, ri_type, args.region)
+    reserved_instances[(ri_engine, ri_type, args.region)] = \
         reserved_instances.get(key, 0) + ri_count
     ri_start_time = ri['StartTime']
     ri_duration = ri['Duration']
@@ -82,14 +89,14 @@ for k, v in six.iteritems(diff):
 # Report
 print("Unused reserved RDS instances:")
 for k, v in sorted(six.iteritems(unused_ri), key=lambda x: x[0]):
-    print("\t(%s)\t%s\t%s" %(v, k[0], k[1]))
+    print("\t(%s)\t%12s\t%s" %(v, k[0], k[1]))
 if not unused_ri:
     print("\tNone")
 print("")
 
 print("Expiring soon (less than %sd) reserved RDS instances:" % args.warn_time)
 for k, v in sorted(six.iteritems(soon_expire_ri), key=lambda x: x[1][:2]):
-    print("\t%s\t%s\t%s\t%s" %(
+    print("\t%s\t%12s\t%s\t%s" %(
         k, v[0], v[1], v[2].strftime('%Y-%m-%d')))
 if not soon_expire_ri:
     print("\tNone")
@@ -97,7 +104,7 @@ print("")
 
 print("On-demand RDS instances, which haven't got a reserved RDS instance:")
 for k, v in sorted(six.iteritems(unreserved_instances), key=lambda x: x[0]):
-    print("\t(%s)\t%s\t%s" %(v, k[0], k[1]))
+    print("\t(%s)\t%12s\t%s" %(v, k[0], k[1]))
 if not unreserved_instances:
     print("\tNone")
 print("")
