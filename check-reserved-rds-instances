@@ -37,6 +37,8 @@ def normalized_engine(name):
     engine = {}
     engine['postgres'] = 'postgresql'
     return engine.get(name, name)
+def instance_header():
+    return ("\t(%s)\t%12s\t%s\t%s" %("Count", "Engine", "Instance", "Multi-AZ"))
 
 running_instances = {}
 for i in instances:
@@ -46,7 +48,7 @@ for i in instances:
         continue
     a_zone = args.region
     db_engine = normalized_engine(i['Engine'])
-    key = (db_engine, i['DBInstanceClass'], a_zone)
+    key = (db_engine, i['DBInstanceClass'], a_zone, i['MultiAZ'])
     running_instances[key] = running_instances.get(key, 0) + 1
 
 reserved_instances = {}
@@ -62,8 +64,9 @@ for ri in reservations:
     ri_type = ri['DBInstanceClass']
     ri_count = ri['DBInstanceCount']
     ri_engine = ri['ProductDescription']
-    key = (ri_engine, ri_type, args.region)
-    reserved_instances[(ri_engine, ri_type, args.region)] = \
+    ri_multiaz = ri['MultiAZ']
+    key = (ri_engine, ri_type, args.region, ri_multiaz)
+    reserved_instances[(ri_engine, ri_type, args.region, ri_multiaz)] = \
         reserved_instances.get(key, 0) + ri_count
     ri_start_time = ri['StartTime']
     ri_duration = ri['Duration']
@@ -88,8 +91,9 @@ for k, v in six.iteritems(diff):
 
 # Report
 print("Unused reserved RDS instances:")
+print(instance_header())
 for k, v in sorted(six.iteritems(unused_ri), key=lambda x: x[0]):
-    print("\t(%s)\t%12s\t%s" %(v, k[0], k[1]))
+    print("\t(%s)\t%12s\t%s\t%s" %(v, k[0], k[1], k[3]))
 if not unused_ri:
     print("\tNone")
 print("")
@@ -103,8 +107,9 @@ if not soon_expire_ri:
 print("")
 
 print("On-demand RDS instances, which haven't got a reserved RDS instance:")
+print(instance_header())
 for k, v in sorted(six.iteritems(unreserved_instances), key=lambda x: x[0]):
-    print("\t(%s)\t%12s\t%s" %(v, k[0], k[1]))
+    print("\t(%s)\t%12s\t%s\t%s" %(v, k[0], k[1], k[3]))
 if not unreserved_instances:
     print("\tNone")
 print("")
