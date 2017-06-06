@@ -25,7 +25,7 @@ parser.add_argument("-w", "--warn-time", type=int, default=30,
 args = parser.parse_args()
 
 def instance_header():
-    return ("\t(%s)\t%12s\t%s\t%s" %("Count", "Engine", "Instance", "AZ"))
+    return ("\t(%s)\t%12s\t%s" %("Count", "Engine", "Instance"))
 
 session = boto3.session.Session(region_name=args.region,
                                 aws_access_key_id=args.aws_access_key,
@@ -80,15 +80,15 @@ for k, v in six.iteritems(diff):
         unreserved_instances[k] = -v
 
 # Report
-print("Unused reserved RDS instances:")
+print("Unused reserved Elasticache instances:")
 print(instance_header())
 for k, v in sorted(six.iteritems(unused_ri), key=lambda x: x[0]):
-    print("\t(%s)\t%12s\t%s\t%s" %(v, k[0], k[1], k[2]))
+    print("\t(%s)\t%12s\t%s" %(v, k[0], k[1]))
 if not unused_ri:
     print("\tNone")
 print("")
 
-print("Expiring soon (less than %sd) reserved RDS instances:" % args.warn_time)
+print("Expiring soon (less than %sd) reserved Elasticache instances:" % args.warn_time)
 for k, v in sorted(six.iteritems(soon_expire_ri), key=lambda x: x[1][:2]):
     print("\t%s\t%12s\t%s\t%s\t%s" %(
         k, v[0], v[1], v[2].strftime('%Y-%m-%d')))
@@ -96,14 +96,14 @@ if not soon_expire_ri:
     print("\tNone")
 print("")
 
-print("On-demand RDS instances, which haven't got a reserved RDS instance:")
+print("On-demand Elasticache instances, which haven't got a reserved Elasticache instance:")
 print(instance_header())
 for k, v in sorted(six.iteritems(unreserved_instances), key=lambda x: x[0]):
-    print("\t(%s)\t%12s\t%s\t%s" %(v, k[0], k[1], k[2]))
+    print("\t(%s)\t%12s\t%s" %(v, k[0], k[1]))
 if not unreserved_instances:
     print("\tNone")
 print("")
 
-print("Running on-demand RDS instances: %s" % sum(running_instances.values()))
-print("Reserved RDS instances:          %s" % sum(reserved_instances.values()))
+print("Running on-demand Elasticache instances: %s" % sum(running_instances.values()))
+print("Reserved Elasticache instances:          %s" % sum(reserved_instances.values()))
 print("")
