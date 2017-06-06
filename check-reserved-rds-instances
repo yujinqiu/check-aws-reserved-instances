@@ -66,13 +66,12 @@ for ri in reservations:
     ri_engine = ri['ProductDescription']
     ri_multiaz = ri['MultiAZ']
     key = (ri_engine, ri_type, args.region, ri_multiaz)
-    reserved_instances[(ri_engine, ri_type, args.region, ri_multiaz)] = \
+    reserved_instances[key] = \
         reserved_instances.get(key, 0) + ri_count
     ri_start_time = ri['StartTime']
-    ri_duration = ri['Duration']
     expire_time = ri_start_time + datetime.timedelta(seconds=ri['Duration'])
     if (expire_time - now) < datetime.timedelta(days=args.warn_time):
-        soon_expire_ri[ri_id] = (ri_type, args.region, expire_time)
+        soon_expire_ri[ri_id] = (ri_type, ri_engine, args.region, expire_time)
 
 diff = dict([(x, reserved_instances[x] - running_instances.get(x, 0))
              for x in reserved_instances])
@@ -100,8 +99,8 @@ print("")
 
 print("Expiring soon (less than %sd) reserved RDS instances:" % args.warn_time)
 for k, v in sorted(six.iteritems(soon_expire_ri), key=lambda x: x[1][:2]):
-    print("\t%s\t%12s\t%s\t%s" %(
-        k, v[0], v[1], v[2].strftime('%Y-%m-%d')))
+    print("\t%s\t%12s\t%s\t%s\t%s" %(
+        k, v[0], v[1], v[2], v[3].strftime('%Y-%m-%d')))
 if not soon_expire_ri:
     print("\tNone")
 print("")
