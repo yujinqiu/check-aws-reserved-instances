@@ -27,6 +27,9 @@ args = parser.parse_args()
 def instance_header():
     return ("\t(%s)\t%12s\t%s" %("Count", "Engine", "Instance"))
 
+def expire_header():
+    return ("\t(%s)\t%36s\t%14s\t%s" %("ID", "Type", "Engine", "Region"))
+
 session = boto3.session.Session(region_name=args.region,
                                 aws_access_key_id=args.aws_access_key,
                                 aws_secret_access_key=args.aws_secret_key)
@@ -89,9 +92,9 @@ if not unused_ri:
 print("")
 
 print("Expiring soon (less than %sd) reserved Elasticache instances:" % args.warn_time)
+print(expire_header())
 for k, v in sorted(six.iteritems(soon_expire_ri), key=lambda x: x[1][:2]):
-    print("\t%s\t%12s\t%s\t%s\t%s" %(
-        k, v[0], v[1], v[2].strftime('%Y-%m-%d')))
+    print("\t%s\t%12s\t%s\t%s" %(k, v[0], v[1], v[2]))
 if not soon_expire_ri:
     print("\tNone")
 print("")
