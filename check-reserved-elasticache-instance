@@ -94,7 +94,7 @@ print("")
 print("Expiring soon (less than %sd) reserved Elasticache instances:" % args.warn_time)
 print(expire_header())
 for k, v in sorted(six.iteritems(soon_expire_ri), key=lambda x: x[1][:2]):
-    print("\t%s\t%12s\t%s\t%s" %(k, v[0], v[1], v[2]))
+    print("\t%s\t%12s\t%s\t%s\t%s" %(k, v[0], v[1], v[2], v[3].strftime('%Y-%m-%d')))
 if not soon_expire_ri:
     print("\tNone")
 print("")
