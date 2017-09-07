@@ -23,6 +23,10 @@ parser.add_argument("--region", type=str, default="cn-north-1",
 parser.add_argument("-w", "--warn-time", type=int, default=30,
                     help="Expire period for reserved instances in days. "
                          "Default is '30 days'")
+parser.add_argument("-e", "--expire-time", type=int, default=7,
+                    help="Expired period for reserved instances in days. "
+                         "Default is '7 days'")
+
 args = parser.parse_args()
 REGION = args.region + ' (Region)'
 
@@ -76,17 +80,23 @@ for i in instances:
 # Retrieve reserved instances
 reserved_instances = {}
 soon_expire_ri = {}
+expired_ri = {}
 
 reservations = ec2_client.describe_reserved_instances()
 now = datetime.datetime.utcnow().replace(tzinfo=tzutc())
 for ri in reservations['ReservedInstances']:
-    if ri['State'] not in ('active', 'payment-pending'):
-        continue
     key = (ri['ProductDescription'], ri['InstanceType'],
            ri['AvailabilityZone'] if 'AvailabilityZone' in ri else REGION)
+    expire_time = ri['End']
+    if ri['State'] == 'retired':
+        if (now - expire_time)  < datetime.timedelta(days=args.expire_time):
+            expired_ri[ri['ReservedInstancesId']] = key + (expire_time,)
+        else:
+            continue
+    if ri['State'] not in ('active', 'payment-pending'):
+        continue
     reserved_instances[key] = \
         reserved_instances.get(key, 0) + ri['InstanceCount']
-    expire_time = ri['Start'] + datetime.timedelta(seconds=ri['Duration'])
     if (expire_time - now) < datetime.timedelta(days=args.warn_time):
         soon_expire_ri[ri['ReservedInstancesId']] = key + (expire_time,)
 
@@ -137,6 +147,16 @@ for k, v in sorted(six.iteritems(soon_expire_ri), key=lambda x: x[1][:2]):
     print("\t%s\t%12s\t%s\t%s\t%s" % (k, platform, instance_type, region,
                                     expire_date))
 if not soon_expire_ri:
+   print("\tNone")
+print("")
+
+print("Expired RI (less than %sd) reserved instances:" % args.expire_time)
+for k, v in sorted(six.iteritems(expired_ri), key=lambda x: x[1][:2]):
+    (platform, instance_type, region, expire_date) = v
+    expire_date = expire_date.strftime('%Y-%m-%d')
+    print("\t%s\t%12s\t%s\t%s\t%s" % (k, platform, instance_type, region,
+                                    expire_date))
+if not expired_ri:
    print("\tNone")
 print("")
 
