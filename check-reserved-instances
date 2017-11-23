@@ -90,7 +90,7 @@ for ri in reservations['ReservedInstances']:
     expire_time = ri['End']
     if ri['State'] == 'retired':
         if (now - expire_time)  < datetime.timedelta(days=args.expire_time):
-            expired_ri[ri['ReservedInstancesId']] = key + (expire_time,)
+            expired_ri[ri['ReservedInstancesId']] = key + (expire_time, ri['InstanceCount'])
         else:
             continue
     if ri['State'] not in ('active', 'payment-pending'):
@@ -152,9 +152,9 @@ print("")
 
 print("Expired RI (less than %sd) reserved instances:" % args.expire_time)
 for k, v in sorted(six.iteritems(expired_ri), key=lambda x: x[1][:2]):
-    (platform, instance_type, region, expire_date) = v
+    (platform, instance_type, region, expire_date, instance_count) = v
     expire_date = expire_date.strftime('%Y-%m-%d')
-    print("\t%s\t%12s\t%s\t%s\t%s" % (k, platform, instance_type, region,
+    print("\t(%s)\t%12s\t%s\t%s\t%s\t%s" % (instance_count, k, platform, instance_type, region,
                                     expire_date))
 if not expired_ri:
    print("\tNone")
