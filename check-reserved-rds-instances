@@ -58,7 +58,7 @@ reserved_rds_instances = rds_client.describe_reserved_db_instances()
 reservations = reserved_rds_instances['ReservedDBInstances']  # noqa
 now = datetime.datetime.utcnow().replace(tzinfo=tzutc())
 for ri in reservations:
-    if ri['State'] == 'retired':
+    if ri['ReservedDBInstanceId'] == 'retired':
         continue
     ri_id = ri['ReservedDBInstanceId']
     ri_type = ri['DBInstanceClass']
