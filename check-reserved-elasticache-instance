@@ -22,6 +22,9 @@ parser.add_argument("--region", type=str, default="cn-north-1",
 parser.add_argument("-w", "--warn-time", type=int, default=30,
                     help="Expire period for reserved instances in days. "
                          "Default is '30 days'")
+parser.add_argument("-e", "--expire-time", type=int, default=7,
+                    help="Expired period for reserved instances in days. "
+                         "Default is '7 days'")
 args = parser.parse_args()
 
 def instance_header():
@@ -49,21 +52,24 @@ for c in clusters:
 
 reserved_instances = {}
 soon_expire_ri = {}
+expire_ri = {}
 
 reserved_elasticache_instances = elasticache_client.describe_reserved_cache_nodes()
 reservations = reserved_elasticache_instances['ReservedCacheNodes']
 now = datetime.datetime.utcnow().replace(tzinfo=tzutc())
 for ri in reservations:
-    if ri['State'] == 'retired':
-        continue
+    expire_time = ri['StartTime'] + datetime.timedelta(seconds=ri['Duration'])
     ri_id = ri['ReservedCacheNodeId']
     ri_type = ri['CacheNodeType']
     ri_count = ri['CacheNodeCount']
     ri_engine = ri['ProductDescription']
     key = (ri_engine, ri_type, args.region)
+    if ri['State'] == 'retired':
+        if (now - expire_time)  < datetime.timedelta(days=args.expire_time):
+            expire_ri[ri_id] = (ri_type, ri_engine, ri_count, args.region, expire_time)
+        continue
     reserved_instances[key] = \
         reserved_instances.get(key, 0) + ri_count
-    expire_time = ri['StartTime'] + datetime.timedelta(seconds=ri['Duration'])
     if (expire_time - now) < datetime.timedelta(days=args.warn_time):
         soon_expire_ri[ri_id] = (ri_type, ri_engine, ri_count, args.region, expire_time)
 
@@ -83,6 +89,12 @@ for k, v in six.iteritems(diff):
         unreserved_instances[k] = -v
 
 # Report
+print("Reserved reserved Elasticache instances:")
+print(instance_header())
+for k, v in sorted(six.iteritems(reserved_instances), key=lambda x: x[0]):
+    print("\t(%s)\t%12s\t%s" %(v, k[0], k[1]))
+print("")
+
 print("Unused reserved Elasticache instances:")
 print(instance_header())
 for k, v in sorted(six.iteritems(unused_ri), key=lambda x: x[0]):
@@ -96,6 +108,14 @@ print(expire_header())
 for k, v in sorted(six.iteritems(soon_expire_ri), key=lambda x: x[1][:2]):
     print("\t%-30s%-32s%-18s%-12s%-14s%-10s" %(k, v[0], v[1], v[2], v[3], v[4].strftime('%Y-%m-%d')))
 if not soon_expire_ri:
+    print("\tNone")
+print("")
+
+print("Expired (less than %sd) reserved Elasticache instances:" % args.expire_time)
+print(expire_header())
+for k, v in sorted(six.iteritems(expire_ri), key=lambda x: x[1][:2]):
+    print("\t%-30s%-32s%-18s%-12s%-14s%-10s" %(k, v[0], v[1], v[2], v[3], v[4].strftime('%Y-%m-%d')))
+if not expire_ri:
     print("\tNone")
 print("")
 
