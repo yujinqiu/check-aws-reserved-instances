@@ -31,7 +31,7 @@ def instance_header():
     return ("\t(%s)\t%12s\t%s" %("Count", "Engine", "Instance"))
 
 def expire_header():
-    return ("\t%-30s%-32s%-18s%-12s%-14s%-10s" %("ID", "Type", "Engine", "Node", "Region", "Expire"))
+    return ("\t%-30s%-32s%-18s%-12s%-14s%-10s" %("ID", "Type", "Engine", "Count", "Region", "Expire"))
 
 session = boto3.session.Session(region_name=args.region,
                                 aws_access_key_id=args.aws_access_key,
