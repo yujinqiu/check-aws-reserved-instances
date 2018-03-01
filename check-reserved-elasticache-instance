@@ -71,7 +71,6 @@ for ri in reservations:
         reserved_instances.get(key, 0) + ri_count
     if (expire_time - now) < datetime.timedelta(days=args.warn_time):
         soon_expire_ri[ri_id] = (ri_type, ri_engine, ri_count, args.region, expire_time)
-print(soon_expire_ri)
 
 diff = dict([(x, reserved_instances[x] - running_instances.get(x, 0))
              for x in reserved_instances])
