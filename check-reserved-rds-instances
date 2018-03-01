@@ -76,7 +76,6 @@ for ri in reservations:
     if ri['State'] == 'retired':
         if (now - expire_time)  < datetime.timedelta(days=args.expire_time):
             expire_ri[ri_id] = (ri_type, ri_engine, args.region, expire_time, ri_count)
-            print(expire_ri)
         continue
 
     reserved_instances[key] = \
