@@ -31,8 +31,7 @@ def instance_header():
     return ("\t(%s)\t%12s\t%s" %("Count", "Engine", "Instance"))
 
 def expire_header():
-    return ("\t%-30s%-32s%-18s%-12s%-14s%-10s" %("ID", "Type", "Engine", "Node", "Region", "Expire"))
-
+    return ("\t(%s)\t%-30s%-32s%-18s%-14s%-10s" %("Count", "ID", "Type", "Engine", "Region", "Expire"))
 session = boto3.session.Session(region_name=args.region,
                                 aws_access_key_id=args.aws_access_key,
                                 aws_secret_access_key=args.aws_secret_key)
@@ -106,7 +105,7 @@ print("")
 print("Expiring soon (less than %sd) reserved Elasticache instances:" % args.warn_time)
 print(expire_header())
 for k, v in sorted(six.iteritems(soon_expire_ri), key=lambda x: x[1][:2]):
-    print("\t%-30s%-32s%-18s%-12s%-14s%-10s" %(k, v[0], v[1], v[2], v[3], v[4].strftime('%Y-%m-%d')))
+    print("\t(%s)\t%-30s%-32s%-18s%-14s%-10s" %(v[2], k, v[0], v[1], v[3], v[4].strftime('%Y-%m-%d')))
 if not soon_expire_ri:
     print("\tNone")
 print("")
@@ -114,7 +113,7 @@ print("")
 print("Expired (less than %sd) reserved Elasticache instances:" % args.expire_time)
 print(expire_header())
 for k, v in sorted(six.iteritems(expire_ri), key=lambda x: x[1][:2]):
-    print("\t%-30s%-32s%-18s%-12s%-14s%-10s" %(k, v[0], v[1], v[2], v[3], v[4].strftime('%Y-%m-%d')))
+    print("\t(%s)\t%-30s%-32s%-18s%-14s%-10s" %(v[2], k, v[0], v[1], v[3], v[4].strftime('%Y-%m-%d')))
 if not expire_ri:
     print("\tNone")
 print("")

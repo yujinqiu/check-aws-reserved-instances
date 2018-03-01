@@ -99,7 +99,7 @@ for ri in reservations['ReservedInstances']:
     reserved_instances[key] = \
         reserved_instances.get(key, 0) + ri['InstanceCount']
     if (expire_time - now) < datetime.timedelta(days=args.warn_time):
-        soon_expire_ri[ri['ReservedInstancesId']] = key + (expire_time,)
+        soon_expire_ri[ri['ReservedInstancesId']] = key + (expire_time, ri['InstanceCount'])
 
 # Create a dict relating reserved instance keys to running instances.
 # Reserveds get modulated by running.
@@ -143,9 +143,9 @@ print("")
 
 print("Expiring soon (less than %sd) reserved instances:" % args.warn_time)
 for k, v in sorted(six.iteritems(soon_expire_ri), key=lambda x: x[1][:2]):
-    (platform, instance_type, region, expire_date) = v
+    (platform, instance_type, region, expire_date, instance_count) = v
     expire_date = expire_date.strftime('%Y-%m-%d')
-    print("\t%s\t%12s\t%s\t%s\t%s" % (k, platform, instance_type, region,
+    print("\t(%s)\t%s\t%12s\t%s\t%s\t%s" % (instance_count, k, platform, instance_type, region,
                                     expire_date))
 if not soon_expire_ri:
    print("\tNone")
