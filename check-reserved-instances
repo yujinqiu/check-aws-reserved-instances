@@ -26,6 +26,9 @@ parser.add_argument("-w", "--warn-time", type=int, default=30,
 parser.add_argument("-e", "--expire-time", type=int, default=7,
                     help="Expired period for reserved instances in days. "
                          "Default is '7 days'")
+parser.add_argument("-o", "--order-time", type=int, default=7,
+                    help="Payment period for reserved instances in days. "
+                         "Default is '7 days'")
 
 args = parser.parse_args()
 REGION = args.region + ' (Region)'
@@ -81,25 +84,32 @@ for i in instances:
 reserved_instances = {}
 soon_expire_ri = {}
 expired_ri = {}
+new_order_ri = {}
 
 reservations = ec2_client.describe_reserved_instances()
 now = datetime.datetime.utcnow().replace(tzinfo=tzutc())
+order_process_time = 10
 for ri in reservations['ReservedInstances']:
     key = (ri['ProductDescription'], ri['InstanceType'],
            ri['AvailabilityZone'] if 'AvailabilityZone' in ri else REGION)
     expire_time = ri['End']
+    duration_time = ri['Duration']
+    start_time = ri['Start']
+    cha = expire_time - now
     if ri['State'] == 'retired':
         if (now - expire_time)  < datetime.timedelta(days=args.expire_time):
             expired_ri[ri['ReservedInstancesId']] = key + (expire_time, ri['InstanceCount'])
-#        else:
-#            continue
-            continue
+        continue
     if ri['State'] not in ('active', 'payment-pending'):
         continue
     reserved_instances[key] = \
         reserved_instances.get(key, 0) + ri['InstanceCount']
     if (expire_time - now) < datetime.timedelta(days=args.warn_time):
         soon_expire_ri[ri['ReservedInstancesId']] = key + (expire_time, ri['InstanceCount'])
+    if (expire_time - start_time) > datetime.timedelta(seconds=(duration_time - order_process_time)):
+        if (now - start_time) < datetime.timedelta(days=args.order_time):
+            new_order_ri[ri['ReservedInstancesId']] = key + (expire_time, ri['InstanceCount'])
+        
 
 # Create a dict relating reserved instance keys to running instances.
 # Reserveds get modulated by running.
@@ -127,7 +137,6 @@ for k, v in six.iteritems(diff):
         unused_ri[k] = v
     elif v < 0:
         unreserved_instances[k] = -v
-
 # Report
 print("Reserved instances:")
 for k, v in sorted(six.iteritems(reserved_instances), key=lambda x: x[0]):
@@ -138,6 +147,13 @@ print("Unused reserved instances:")
 for k, v in sorted(six.iteritems(unused_ri), key=lambda x: x[0]):
     print("\t(%s)\t%12s\t%s\t%s" % ((v,) + k))
 if not unused_ri:
+    print("\tNone")
+print("")
+
+print("On-demand instances, which haven't got a reserved instance:")
+for k, v in sorted(six.iteritems(unreserved_instances), key=lambda x: x[0]):
+    print("\t(%s)\t%12s\t%s\t%s" % ((v,) + k))
+if not unreserved_instances:
     print("\tNone")
 print("")
 
@@ -161,11 +177,14 @@ if not expired_ri:
    print("\tNone")
 print("")
 
-print("On-demand instances, which haven't got a reserved instance:")
-for k, v in sorted(six.iteritems(unreserved_instances), key=lambda x: x[0]):
-    print("\t(%s)\t%12s\t%s\t%s" % ((v,) + k))
-if not unreserved_instances:
-    print("\tNone")
+print("New Order RI (less than %sd) reserved instances:" % args.order_time)
+for k, v in sorted(six.iteritems(new_order_ri), key=lambda x: x[1][:2]):
+    (platform, instance_type, region, expire_date, instance_count) = v
+    expire_date = expire_date.strftime('%Y-%m-%d')
+    print("\t(%s)\t%s\t%12s\t%s\t%s\t%s" % (instance_count, k, platform, instance_type, region,
+                                    expire_date))
+if not new_order_ri:
+   print("\tNone")
 print("")
 
 print("Running on-demand instances:   %s" % sum(running_instances.values()))
