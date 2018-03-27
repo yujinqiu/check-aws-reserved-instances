@@ -43,6 +43,8 @@ def normalized_engine(name):
     return engine.get(name, name)
 def instance_header():
     return ("\t%s\t%12s\t%s\t%s" %("Count", "Engine", "Instance", "Multi-AZ"))
+def expire_header():
+    return ("\t%s\t%-30s%-32s%-18s%-14s%-10s" %("Count", "ID", "Type", "Engine", "Region", "Expire"))
 
 running_instances = {}
 for i in instances:
@@ -58,6 +60,7 @@ for i in instances:
 reserved_instances = {}
 soon_expire_ri = {}
 expire_ri = {}
+weekpay_ri = {}
 
 reserved_rds_instances = rds_client.describe_reserved_db_instances()
 reservations = reserved_rds_instances['ReservedDBInstances']  # noqa
@@ -65,7 +68,6 @@ now = datetime.datetime.utcnow().replace(tzinfo=tzutc())
 for ri in reservations:
     ri_start_time = ri['StartTime']
     expire_time = ri_start_time + datetime.timedelta(seconds=ri['Duration']) 
-
     ri_id = ri['ReservedDBInstanceId']
     ri_type = ri['DBInstanceClass']
     ri_count = ri['DBInstanceCount']
@@ -83,6 +85,9 @@ for ri in reservations:
 
     if (expire_time - now) < datetime.timedelta(days=args.warn_time):
         soon_expire_ri[ri_id] = (ri_type, ri_engine, args.region, expire_time, ri_count)
+
+    if (now - ri_start_time) < datetime.timedelta(days=args.expire_time):
+        weekpay_ri[ri_id] = (ri_type, ri_engine, args.region, expire_time, ri_count)
 
 diff = dict([(x, reserved_instances[x] - running_instances.get(x, 0))
              for x in reserved_instances])
@@ -123,6 +128,7 @@ if not unreserved_instances:
 print("")
 
 print("Expiring soon (less than %sd) reserved RDS instances:" % args.warn_time)
+print(expire_header())
 for k, v in sorted(six.iteritems(soon_expire_ri), key=lambda x: x[1][:2]):
     print("\t(%s)\t%s\t%12s\t%s\t%s\t%s" %(
         v[4], k, v[0], v[1], v[2], v[3].strftime('%Y-%m-%d')))
@@ -131,7 +137,17 @@ if not soon_expire_ri:
 print("")
 
 print("Expired (less than %sd) reserved RDS instances:" % args.expire_time)
+print(expire_header())
 for k, v in sorted(six.iteritems(expire_ri), key=lambda x: x[1][:2]):
+    print("\t(%s)\t%s\t%12s\t%s\t%s\t%s" %(
+        v[4], k, v[0], v[1], v[2], v[3].strftime('%Y-%m-%d')))
+if not expire_ri:
+    print("\tNone")
+print("")
+
+print("payment ri (less than %sd) reserved RDS instances:" % args.expire_time)
+print(expire_header())
+for k, v in sorted(six.iteritems(weekpay_ri), key=lambda x: x[1][:2]):
     print("\t(%s)\t%s\t%12s\t%s\t%s\t%s" %(
         v[4], k, v[0], v[1], v[2], v[3].strftime('%Y-%m-%d')))
 if not expire_ri:

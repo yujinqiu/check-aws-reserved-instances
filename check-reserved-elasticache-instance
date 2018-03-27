@@ -52,12 +52,14 @@ for c in clusters:
 reserved_instances = {}
 soon_expire_ri = {}
 expire_ri = {}
+weekpay_ri = {}
 
 reserved_elasticache_instances = elasticache_client.describe_reserved_cache_nodes()
 reservations = reserved_elasticache_instances['ReservedCacheNodes']
 now = datetime.datetime.utcnow().replace(tzinfo=tzutc())
 for ri in reservations:
-    expire_time = ri['StartTime'] + datetime.timedelta(seconds=ri['Duration'])
+    ri_start_time = ri['StartTime']
+    expire_time = ri_start_time + datetime.timedelta(seconds=ri['Duration'])
     ri_id = ri['ReservedCacheNodeId']
     ri_type = ri['CacheNodeType']
     ri_count = ri['CacheNodeCount']
@@ -71,6 +73,9 @@ for ri in reservations:
         reserved_instances.get(key, 0) + ri_count
     if (expire_time - now) < datetime.timedelta(days=args.warn_time):
         soon_expire_ri[ri_id] = (ri_type, ri_engine, ri_count, args.region, expire_time)
+
+    if (now - ri_start_time) < datetime.timedelta(days=args.expire_time):
+        weekpay_ri[ri_id] = (ri_type, ri_engine, args.region, expire_time, ri_count)
 
 diff = dict([(x, reserved_instances[x] - running_instances.get(x, 0))
              for x in reserved_instances])
@@ -118,9 +123,17 @@ if not soon_expire_ri:
     print("\tNone")
 print("")
 
-print("Expired (less than %sd) reserved Elasticache instances:" % args.expire_time)
+print("Expired RI(less than %sd) reserved Elasticache instances:" % args.expire_time)
 print(expire_header())
 for k, v in sorted(six.iteritems(expire_ri), key=lambda x: x[1][:2]):
+    print("\t(%s)\t%-30s%-32s%-18s%-14s%-10s" %(v[2], k, v[0], v[1], v[3], v[4].strftime('%Y-%m-%d')))
+if not expire_ri:
+    print("\tNone")
+print("")
+
+print("Payment RI (less than %sd) reserved Elasticache instances:" % args.expire_time)
+print(expire_header())
+for k, v in sorted(six.iteritems(weekpay_ri), key=lambda x: x[1][:2]):
     print("\t(%s)\t%-30s%-32s%-18s%-14s%-10s" %(v[2], k, v[0], v[1], v[3], v[4].strftime('%Y-%m-%d')))
 if not expire_ri:
     print("\tNone")

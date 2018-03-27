@@ -81,7 +81,7 @@ for i in instances:
 reserved_instances = {}
 soon_expire_ri = {}
 expired_ri = {}
-oneweek_instances = {}
+weekpay_ri = {}
 
 reservations = ec2_client.describe_reserved_instances()
 now = datetime.datetime.utcnow().replace(tzinfo=tzutc())
@@ -95,7 +95,7 @@ for ri in reservations['ReservedInstances']:
     if ri['State'] == 'retired':
         if (now - expire_time)  < datetime.timedelta(days=args.expire_time):
             expired_ri[ri['ReservedInstancesId']] = key + (expire_time, ri['InstanceCount'])
-            continue
+        continue
     if ri['State'] not in ('active', 'payment-pending'):
         continue
     reserved_instances[key] = \
@@ -104,7 +104,7 @@ for ri in reservations['ReservedInstances']:
         soon_expire_ri[ri['ReservedInstancesId']] = key + (expire_time, ri['InstanceCount'])
     if (expire_time - start_time) > datetime.timedelta(seconds=(duration_time - 10)):
         if (now - start_time) < datetime.timedelta(days=args.expire_time):
-            oneweek_instances[ri['ReservedInstancesId']] = key + (expire_time, ri['InstanceCount'])
+            weekpay_ri[ri['ReservedInstancesId']] = key + (expire_time, ri['InstanceCount'])
         
 
 # Create a dict relating reserved instance keys to running instances.
@@ -173,8 +173,8 @@ if not expired_ri:
    print("\tNone")
 print("")
 
-print("Reserved payment (less than %sd) reserved instances:" % args.expire_time)
-for k, v in sorted(six.iteritems(oneweek_instances), key=lambda x: x[1][:2]):
+print("RI payment (less than %sd) reserved instances:" % args.expire_time)
+for k, v in sorted(six.iteritems(weekpay_ri), key=lambda x: x[1][:2]):
     (platform, instance_type, region, expire_date, instance_count) = v
     expire_date = expire_date.strftime('%Y-%m-%d')
     print("\t(%s)\t%s\t%12s\t%s\t%s\t%s" % (instance_count, k, platform, instance_type, region,
