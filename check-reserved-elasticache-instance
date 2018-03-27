@@ -28,10 +28,10 @@ parser.add_argument("-e", "--expire-time", type=int, default=7,
 args = parser.parse_args()
 
 def instance_header():
-    return ("\t(%s)\t%12s\t%s" %("Count", "Engine", "Instance"))
+    return ("\t%s\t%12s\t%s" %("Count", "Engine", "Instance"))
 
 def expire_header():
-    return ("\t(%s)\t%-30s%-32s%-18s%-14s%-10s" %("Count", "ID", "Type", "Engine", "Region", "Expire"))
+    return ("\t%s\t%-30s%-32s%-18s%-14s%-10s" %("Count", "ID", "Type", "Engine", "Region", "Expire"))
 session = boto3.session.Session(region_name=args.region,
                                 aws_access_key_id=args.aws_access_key,
                                 aws_secret_access_key=args.aws_secret_key)
@@ -102,6 +102,14 @@ if not unused_ri:
     print("\tNone")
 print("")
 
+print("On-demand Elasticache instances, which haven't got a reserved Elasticache instance:")
+print(instance_header())
+for k, v in sorted(six.iteritems(unreserved_instances), key=lambda x: x[0]):
+    print("\t(%s)\t%12s\t%s" %(v, k[0], k[1]))
+if not unreserved_instances:
+    print("\tNone")
+print("")
+
 print("Expiring soon (less than %sd) reserved Elasticache instances:" % args.warn_time)
 print(expire_header())
 for k, v in sorted(six.iteritems(soon_expire_ri), key=lambda x: x[1][:2]):
@@ -115,14 +123,6 @@ print(expire_header())
 for k, v in sorted(six.iteritems(expire_ri), key=lambda x: x[1][:2]):
     print("\t(%s)\t%-30s%-32s%-18s%-14s%-10s" %(v[2], k, v[0], v[1], v[3], v[4].strftime('%Y-%m-%d')))
 if not expire_ri:
-    print("\tNone")
-print("")
-
-print("On-demand Elasticache instances, which haven't got a reserved Elasticache instance:")
-print(instance_header())
-for k, v in sorted(six.iteritems(unreserved_instances), key=lambda x: x[0]):
-    print("\t(%s)\t%12s\t%s" %(v, k[0], k[1]))
-if not unreserved_instances:
     print("\tNone")
 print("")
 

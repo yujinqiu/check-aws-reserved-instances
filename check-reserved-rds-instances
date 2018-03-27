@@ -42,7 +42,7 @@ def normalized_engine(name):
     engine['postgres'] = 'postgresql'
     return engine.get(name, name)
 def instance_header():
-    return ("\t(%s)\t%12s\t%s\t%s" %("Count", "Engine", "Instance", "Multi-AZ"))
+    return ("\t%s\t%12s\t%s\t%s" %("Count", "Engine", "Instance", "Multi-AZ"))
 
 running_instances = {}
 for i in instances:
@@ -114,6 +114,14 @@ if not unused_ri:
     print("\tNone")
 print("")
 
+print("On-demand RDS instances, which haven't got a reserved RDS instance:")
+print(instance_header())
+for k, v in sorted(six.iteritems(unreserved_instances), key=lambda x: x[0]):
+    print("\t(%s)\t%12s\t%s\t%s" %(v, k[0], k[1], k[3]))
+if not unreserved_instances:
+    print("\tNone")
+print("")
+
 print("Expiring soon (less than %sd) reserved RDS instances:" % args.warn_time)
 for k, v in sorted(six.iteritems(soon_expire_ri), key=lambda x: x[1][:2]):
     print("\t(%s)\t%s\t%12s\t%s\t%s\t%s" %(
@@ -127,14 +135,6 @@ for k, v in sorted(six.iteritems(expire_ri), key=lambda x: x[1][:2]):
     print("\t(%s)\t%s\t%12s\t%s\t%s\t%s" %(
         v[4], k, v[0], v[1], v[2], v[3].strftime('%Y-%m-%d')))
 if not expire_ri:
-    print("\tNone")
-print("")
-
-print("On-demand RDS instances, which haven't got a reserved RDS instance:")
-print(instance_header())
-for k, v in sorted(six.iteritems(unreserved_instances), key=lambda x: x[0]):
-    print("\t(%s)\t%12s\t%s\t%s" %(v, k[0], k[1], k[3]))
-if not unreserved_instances:
     print("\tNone")
 print("")
 
