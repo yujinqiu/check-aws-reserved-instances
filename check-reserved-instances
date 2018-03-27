@@ -26,6 +26,9 @@ parser.add_argument("-w", "--warn-time", type=int, default=30,
 parser.add_argument("-e", "--expire-time", type=int, default=7,
                     help="Expired period for reserved instances in days. "
                          "Default is '7 days'")
+parser.add_argument("-o", "--order-time", type=int, default=7,
+                    help="Payment period for reserved instances in days. "
+                         "Default is '7 days'")
 
 args = parser.parse_args()
 REGION = args.region + ' (Region)'
@@ -81,10 +84,11 @@ for i in instances:
 reserved_instances = {}
 soon_expire_ri = {}
 expired_ri = {}
-weekpay_ri = {}
+new_order_ri = {}
 
 reservations = ec2_client.describe_reserved_instances()
 now = datetime.datetime.utcnow().replace(tzinfo=tzutc())
+order_process_time = 10
 for ri in reservations['ReservedInstances']:
     key = (ri['ProductDescription'], ri['InstanceType'],
            ri['AvailabilityZone'] if 'AvailabilityZone' in ri else REGION)
@@ -102,9 +106,9 @@ for ri in reservations['ReservedInstances']:
         reserved_instances.get(key, 0) + ri['InstanceCount']
     if (expire_time - now) < datetime.timedelta(days=args.warn_time):
         soon_expire_ri[ri['ReservedInstancesId']] = key + (expire_time, ri['InstanceCount'])
-    if (expire_time - start_time) > datetime.timedelta(seconds=(duration_time - 10)):
-        if (now - start_time) < datetime.timedelta(days=args.expire_time):
-            weekpay_ri[ri['ReservedInstancesId']] = key + (expire_time, ri['InstanceCount'])
+    if (expire_time - start_time) > datetime.timedelta(seconds=(duration_time - order_process_time)):
+        if (now - start_time) < datetime.timedelta(days=args.order_time):
+            new_order_ri[ri['ReservedInstancesId']] = key + (expire_time, ri['InstanceCount'])
         
 
 # Create a dict relating reserved instance keys to running instances.
@@ -173,13 +177,13 @@ if not expired_ri:
    print("\tNone")
 print("")
 
-print("RI payment (less than %sd) reserved instances:" % args.expire_time)
-for k, v in sorted(six.iteritems(weekpay_ri), key=lambda x: x[1][:2]):
+print("New Order RI (less than %sd) reserved instances:" % args.order_time)
+for k, v in sorted(six.iteritems(new_order_ri), key=lambda x: x[1][:2]):
     (platform, instance_type, region, expire_date, instance_count) = v
     expire_date = expire_date.strftime('%Y-%m-%d')
     print("\t(%s)\t%s\t%12s\t%s\t%s\t%s" % (instance_count, k, platform, instance_type, region,
                                     expire_date))
-if not soon_expire_ri:
+if not new_order_ri:
    print("\tNone")
 print("")
 

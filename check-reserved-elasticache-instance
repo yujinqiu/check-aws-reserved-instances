@@ -25,6 +25,10 @@ parser.add_argument("-w", "--warn-time", type=int, default=30,
 parser.add_argument("-e", "--expire-time", type=int, default=7,
                     help="Expired period for reserved instances in days. "
                          "Default is '7 days'")
+parser.add_argument("-o", "--order-time", type=int, default=7,
+                    help="Payment period for reserved instances in days. "
+                         "Default is '7 days'")
+
 args = parser.parse_args()
 
 def instance_header():
@@ -52,7 +56,7 @@ for c in clusters:
 reserved_instances = {}
 soon_expire_ri = {}
 expire_ri = {}
-weekpay_ri = {}
+new_order_ri = {}
 
 reserved_elasticache_instances = elasticache_client.describe_reserved_cache_nodes()
 reservations = reserved_elasticache_instances['ReservedCacheNodes']
@@ -74,8 +78,8 @@ for ri in reservations:
     if (expire_time - now) < datetime.timedelta(days=args.warn_time):
         soon_expire_ri[ri_id] = (ri_type, ri_engine, ri_count, args.region, expire_time)
 
-    if (now - ri_start_time) < datetime.timedelta(days=args.expire_time):
-        weekpay_ri[ri_id] = (ri_type, ri_engine, args.region, expire_time, ri_count)
+    if (now - ri_start_time) < datetime.timedelta(days=args.order_time):
+        new_order_ri[ri_id] = (ri_type, ri_engine, ri_count, args.region, expire_time) 
 
 diff = dict([(x, reserved_instances[x] - running_instances.get(x, 0))
              for x in reserved_instances])
@@ -131,11 +135,12 @@ if not expire_ri:
     print("\tNone")
 print("")
 
-print("Payment RI (less than %sd) reserved Elasticache instances:" % args.expire_time)
+
+print("New Order RI (less than %sd) reserved Elasticache instances:" % args.order_time)
 print(expire_header())
-for k, v in sorted(six.iteritems(weekpay_ri), key=lambda x: x[1][:2]):
+for k, v in sorted(six.iteritems(new_order_ri), key=lambda x: x[1][:2]):
     print("\t(%s)\t%-30s%-32s%-18s%-14s%-10s" %(v[2], k, v[0], v[1], v[3], v[4].strftime('%Y-%m-%d')))
-if not expire_ri:
+if not new_order_ri:
     print("\tNone")
 print("")
 
