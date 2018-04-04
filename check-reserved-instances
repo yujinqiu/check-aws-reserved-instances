@@ -46,14 +46,17 @@ IMAGE_PLATFORM_PAT = {
     ],
 }
 image_id_to_platform = {}
-
+spot_instances = {}
 # Retrieve instances
 instances = ec2.instances.all()
 running_instances = {}
 for i in instances:
+    if i.instance_lifecycle == 'spot':
+        spot_key = (platform, i.instance_lifecycle, i.instance_type, i.placement['AvailabilityZone'] if 'AvailabilityZone' in i.placement else REGION)
+        spot_instances[spot_key] = spot_instances.get(spot_key,0) + 1
+        continue
     if i.state['Name'] != 'running':
         continue
-
     image_id = i.image_id
     if image_id in image_id_to_platform:
         platform = image_id_to_platform[image_id]
@@ -79,7 +82,6 @@ for i in instances:
 
     key = (platform, i.instance_type, i.placement['AvailabilityZone'] if 'AvailabilityZone' in i.placement else REGION)
     running_instances[key] = running_instances.get(key, 0) + 1
-
 # Retrieve reserved instances
 reserved_instances = {}
 soon_expire_ri = {}
@@ -98,7 +100,8 @@ for ri in reservations['ReservedInstances']:
     cha = expire_time - now
     if ri['State'] == 'retired':
         if (now - expire_time)  < datetime.timedelta(days=args.expire_time):
-            expired_ri[ri['ReservedInstancesId']] = key + (expire_time, ri['InstanceCount'])
+            if (expire_time - start_time) > datetime.timedelta(seconds=(duration_time - order_process_time)):
+                expired_ri[ri['ReservedInstancesId']] = key + (expire_time, ri['InstanceCount'])
         continue
     if ri['State'] not in ('active', 'payment-pending'):
         continue
@@ -110,12 +113,10 @@ for ri in reservations['ReservedInstances']:
         if (now - start_time) < datetime.timedelta(days=args.order_time):
             new_order_ri[ri['ReservedInstancesId']] = key + (expire_time, ri['InstanceCount'])
         
-
 # Create a dict relating reserved instance keys to running instances.
 # Reserveds get modulated by running.
 diff = dict([(x, reserved_instances[x] - running_instances.get(x, 0))
              for x in reserved_instances])
-
 # Subtract all region-unspecific RIs.
 for reserved_pkey in reserved_instances:
     if reserved_pkey[2] == REGION:
@@ -124,12 +125,10 @@ for reserved_pkey in reserved_instances:
             if running_pkey[0] == reserved_pkey[0] and running_pkey[1] == reserved_pkey[1]:
                 diff[running_pkey] = diff.get(running_pkey, 0) + running_instances[running_pkey]
                 diff[reserved_pkey] -= running_instances[running_pkey]
-
 # For all other running instances, add a negative amount
 for pkey in running_instances:
     if pkey not in reserved_instances:
         diff[pkey] = diff.get(pkey, 0) - running_instances[pkey]
-
 unused_ri = {}
 unreserved_instances = {}
 for k, v in six.iteritems(diff):
@@ -154,6 +153,13 @@ print("On-demand instances, which haven't got a reserved instance:")
 for k, v in sorted(six.iteritems(unreserved_instances), key=lambda x: x[0]):
     print("\t(%s)\t%12s\t%s\t%s" % ((v,) + k))
 if not unreserved_instances:
+    print("\tNone")
+print("")
+
+print("Spot Instance")
+for k, v in sorted(six.iteritems(spot_instances), key=lambda x: x[0]):
+    print("\t(%s)\t%12s\t%s\t%s\t%s" % ((v,) + k))
+if not spot_instances:
     print("\tNone")
 print("")
 
@@ -187,6 +193,7 @@ if not new_order_ri:
    print("\tNone")
 print("")
 
+print("Running spot instances:        %s" % sum(spot_instances.values()))
 print("Running on-demand instances:   %s" % sum(running_instances.values()))
 print("Reserved instances:            %s" % sum(reserved_instances.values()))
 print("")
