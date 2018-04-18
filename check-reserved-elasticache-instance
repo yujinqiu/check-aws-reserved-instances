@@ -144,6 +144,8 @@ if not new_order_ri:
     print("\tNone")
 print("")
 
-print("Running on-demand Elasticache instances: %s" % sum(running_instances.values()))
-print("Reserved Elasticache instances:          %s" % sum(reserved_instances.values()))
+#print("Running on-demand Elasticache instances: %s" % sum(running_instances.values()))
+#print("Reserved Elasticache instances:          %s" % sum(reserved_instances.values()))
+print("Running on-demand Elasticache instances: %s" % sum(six.itervalues(running_instances)))
+print("Reserved Elasticache instances:          %s" % sum(six.itervalues(reserved_instances)))
 print("")

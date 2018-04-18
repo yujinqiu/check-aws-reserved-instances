@@ -19,7 +19,7 @@ parser.add_argument("--aws-secret-key", type=str, default=None,
                     help="AWS Secret Access Key. Defaults to the value of the "
                          "AWS_SECRET_ACCESS_KEY environment variable (if set)")
 parser.add_argument("--region", type=str, default="cn-north-1",
-                    help="AWS Region name. Default is 'cn-north-1'")
+                    help="AWS Region name. Default is 'cn-north-1';or '--region cn-northwest-1'")
 parser.add_argument("-w", "--warn-time", type=int, default=30,
                     help="Expire period for reserved instances in days. "
                          "Default is '30 days'")
@@ -193,7 +193,10 @@ if not new_order_ri:
    print("\tNone")
 print("")
 
-print("Running spot instances:        %s" % sum(spot_instances.values()))
-print("Running on-demand instances:   %s" % sum(running_instances.values()))
-print("Reserved instances:            %s" % sum(reserved_instances.values()))
+#print("Running spot instances:        %s" % sum(spot_instances.values()))
+#print("Running on-demand instances:   %s" % sum(running_instances.values()))
+#print("Reserved instances:            %s" % sum(reserved_instances.values()))
+print("Running spot instances:        %s" % sum(six.itervalues(spot_instances)))
+print("Running on-demand instances:   %s" % sum(six.itervalues(running_instances)))
+print("Reserved instances:            %s" % sum(six.itervalues(reserved_instances)))
 print("")
