@@ -19,13 +19,13 @@ parser.add_argument("--aws-secret-key", type=str, default=None,
                     help="AWS Secret Access Key. Defaults to the value of the "
                          "AWS_SECRET_ACCESS_KEY environment variable (if set)")
 parser.add_argument("--region", type=str, default="cn-north-1",
-                    help="AWS Region name. Default is 'cn-north-1';or '--region cn-northwest-1'")
+                    help="AWS Region name. Default is 'cn-north-1'")
 parser.add_argument("-w", "--warn-time", type=int, default=30,
                     help="Expire period for reserved instances in days. "
                          "Default is '30 days'")
 parser.add_argument("-e", "--expire-time", type=int, default=3,
                     help="Expired period for reserved instances in days. "
-                         "Default is '7 days'")
+                         "Default is '3 days'")
 parser.add_argument("-o", "--order-time", type=int, default=7,
                     help="Payment period for reserved instances in days. "
                          "Default is '7 days'")
@@ -90,8 +90,7 @@ new_order_ri = {}
 
 reservations = ec2_client.describe_reserved_instances()
 now = datetime.datetime.utcnow().replace(tzinfo=tzutc())
-order_process_time = 10
-day7_secend = 604800
+day7_second = 604800
 for ri in reservations['ReservedInstances']:
     key = (ri['ProductDescription'], ri['InstanceType'],
            ri['AvailabilityZone'] if 'AvailabilityZone' in ri else REGION)
@@ -101,8 +100,7 @@ for ri in reservations['ReservedInstances']:
     cha = expire_time - now
     if ri['State'] == 'retired':
         if (now - expire_time)  < datetime.timedelta(days=args.expire_time):
-#            if (expire_time - start_time) > datetime.timedelta(seconds=(duration_time - order_process_time)):
-                expired_ri[ri['ReservedInstancesId']] = key + (expire_time, ri['InstanceCount'])
+            expired_ri[ri['ReservedInstancesId']] = key + (expire_time, ri['InstanceCount'])
         continue
     if ri['State'] not in ('active', 'payment-pending'):
         continue
@@ -110,7 +108,7 @@ for ri in reservations['ReservedInstances']:
         reserved_instances.get(key, 0) + ri['InstanceCount']
     if (expire_time - now) < datetime.timedelta(days=args.warn_time):
         soon_expire_ri[ri['ReservedInstancesId']] = key + (expire_time, ri['InstanceCount'])
-    if (expire_time - start_time) > datetime.timedelta(seconds=(duration_time - order_process_time - day7_secend)):
+    if (expire_time - start_time) > datetime.timedelta(seconds=(duration_time - day7_second)):
         if (now - start_time) < datetime.timedelta(days=args.order_time):
             new_order_ri[ri['ReservedInstancesId']] = key + (expire_time, ri['InstanceCount'])
         
@@ -194,9 +192,6 @@ if not new_order_ri:
    print("\tNone")
 print("")
 
-#print("Running spot instances:        %s" % sum(spot_instances.values()))
-#print("Running on-demand instances:   %s" % sum(running_instances.values()))
-#print("Reserved instances:            %s" % sum(reserved_instances.values()))
 print("Running spot instances:        %s" % sum(six.itervalues(spot_instances)))
 print("Running on-demand instances:   %s" % sum(six.itervalues(running_instances)))
 print("Reserved instances:            %s" % sum(six.itervalues(reserved_instances)))
