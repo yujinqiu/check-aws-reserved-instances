@@ -157,6 +157,6 @@ if not new_order_ri:
     print("\tNone")
 print("")
 
-print("Running on-demand RDS instances: %s" % sum(running_instances.values()))
-print("Reserved RDS instances:          %s" % sum(reserved_instances.values()))
+print("Running on-demand RDS instances: %s" % sum(six.itervalues(running_instances)))
+print("Reserved RDS instances:          %s" % sum(six.itervalues(reserved_instances)))
 print("")

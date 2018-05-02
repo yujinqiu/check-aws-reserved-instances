@@ -51,10 +51,6 @@ spot_instances = {}
 instances = ec2.instances.all()
 running_instances = {}
 for i in instances:
-    if i.instance_lifecycle == 'spot':
-        spot_key = (platform, i.instance_lifecycle, i.instance_type, i.placement['AvailabilityZone'] if 'AvailabilityZone' in i.placement else REGION)
-        spot_instances[spot_key] = spot_instances.get(spot_key,0) + 1
-        continue
     if i.state['Name'] != 'running':
         continue
     image_id = i.image_id
@@ -77,8 +73,12 @@ for i in instances:
                             break
         except AttributeError:
             platform = 'Linux/UNIX'
-
         image_id_to_platform[image_id] = platform
+
+    if i.instance_lifecycle == 'spot':
+        spot_key = (platform, i.instance_lifecycle, i.instance_type, i.placement['AvailabilityZone'] if 'AvailabilityZone' in i.placement else REGION)
+        spot_instances[spot_key] = spot_instances.get(spot_key,0) + 1
+        continue
 
     key = (platform, i.instance_type, i.placement['AvailabilityZone'] if 'AvailabilityZone' in i.placement else REGION)
     running_instances[key] = running_instances.get(key, 0) + 1
@@ -90,7 +90,7 @@ new_order_ri = {}
 
 reservations = ec2_client.describe_reserved_instances()
 now = datetime.datetime.utcnow().replace(tzinfo=tzutc())
-order_process_time = 10
+day7_second = 604800
 for ri in reservations['ReservedInstances']:
     key = (ri['ProductDescription'], ri['InstanceType'],
            ri['AvailabilityZone'] if 'AvailabilityZone' in ri else REGION)
@@ -100,8 +100,7 @@ for ri in reservations['ReservedInstances']:
     cha = expire_time - now
     if ri['State'] == 'retired':
         if (now - expire_time)  < datetime.timedelta(days=args.expire_time):
-            if (expire_time - start_time) > datetime.timedelta(seconds=(duration_time - order_process_time)):
-                expired_ri[ri['ReservedInstancesId']] = key + (expire_time, ri['InstanceCount'])
+            expired_ri[ri['ReservedInstancesId']] = key + (expire_time, ri['InstanceCount'])
         continue
     if ri['State'] not in ('active', 'payment-pending'):
         continue
@@ -109,7 +108,7 @@ for ri in reservations['ReservedInstances']:
         reserved_instances.get(key, 0) + ri['InstanceCount']
     if (expire_time - now) < datetime.timedelta(days=args.warn_time):
         soon_expire_ri[ri['ReservedInstancesId']] = key + (expire_time, ri['InstanceCount'])
-    if (expire_time - start_time) > datetime.timedelta(seconds=(duration_time - order_process_time)):
+    if (expire_time - start_time) > datetime.timedelta(seconds=(duration_time - day7_second)):
         if (now - start_time) < datetime.timedelta(days=args.order_time):
             new_order_ri[ri['ReservedInstancesId']] = key + (expire_time, ri['InstanceCount'])
         
@@ -193,7 +192,7 @@ if not new_order_ri:
    print("\tNone")
 print("")
 
-print("Running spot instances:        %s" % sum(spot_instances.values()))
-print("Running on-demand instances:   %s" % sum(running_instances.values()))
-print("Reserved instances:            %s" % sum(reserved_instances.values()))
+print("Running spot instances:        %s" % sum(six.itervalues(spot_instances)))
+print("Running on-demand instances:   %s" % sum(six.itervalues(running_instances)))
+print("Reserved instances:            %s" % sum(six.itervalues(reserved_instances)))
 print("")
